@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Happy MPM — Full System Audit Checklist</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0f172a;--surface:#1e293b;--surface2:#334155;--border:#475569;
+  --text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;
+  --critical:#ef4444;--critical-bg:rgba(239,68,68,.12);
+  --high:#f59e0b;--high-bg:rgba(245,158,11,.12);
+  --medium:#3b82f6;--medium-bg:rgba(59,130,246,.12);
+  --low:#22c55e;--low-bg:rgba(34,197,94,.12);
+  --info:#8b5cf6;--info-bg:rgba(139,92,246,.12);
+  --done:#10b981;--done-bg:rgba(16,185,129,.15);
+  --accent:#6366f1;
+}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh}
+.app{max-width:1200px;margin:0 auto;padding:24px 16px 80px}
+header{text-align:center;padding:32px 0 12px}
+header h1{font-size:28px;font-weight:800;background:linear-gradient(135deg,#6366f1,#a78bfa,#f472b6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+header p{color:var(--text2);font-size:14px;margin-top:6px}
+.updated{color:var(--text3);font-size:11px;margin-top:4px}
+
+.stats-bar{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin:20px 0}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px;text-align:center;min-width:100px;flex:1;max-width:160px;transition:transform .2s}
+.stat:hover{transform:translateY(-2px)}
+.stat .num{font-size:24px;font-weight:800}
+.stat .label{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+.stat.critical .num{color:var(--critical)}
+.stat.high .num{color:var(--high)}
+.stat.medium .num{color:var(--medium)}
+.stat.low .num{color:var(--low)}
+.stat.info .num{color:var(--info)}
+.stat.done .num{color:var(--done)}
+
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+.filters input[type=text]{flex:1;min-width:200px;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none}
+.filters input[type=text]:focus{border-color:var(--accent)}
+.filters input[type=text]::placeholder{color:var(--text3)}
+.fbtn{padding:7px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text2);cursor:pointer;font-size:11px;font-weight:600;transition:all .2s}
+.fbtn:hover,.fbtn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+.progress-bar{width:100%;height:8px;background:var(--surface2);border-radius:4px;margin-bottom:20px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--done),#34d399);border-radius:4px;transition:width .5s ease}
+
+.section{margin-bottom:20px}
+.section-header{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:12px 12px 0 0;cursor:pointer;user-select:none;transition:background .2s}
+.section-header:hover{background:var(--surface2)}
+.section-header .arrow{transition:transform .3s;color:var(--text3);font-size:12px}
+.section-header.open .arrow{transform:rotate(90deg)}
+.section-header h2{font-size:14px;font-weight:700;flex:1}
+.section-header .badge{padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700}
+.badge-critical{background:var(--critical-bg);color:var(--critical)}
+.badge-high{background:var(--high-bg);color:var(--high)}
+.badge-medium{background:var(--medium-bg);color:var(--medium)}
+.badge-low{background:var(--low-bg);color:var(--low)}
+.badge-info{background:var(--info-bg);color:var(--info)}
+.section-count{font-size:11px;color:var(--text3);font-weight:600}
+
+.items{border:1px solid var(--border);border-top:none;border-radius:0 0 12px 12px;overflow:hidden}
+.items.collapsed{display:none}
+
+.item{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-bottom:1px solid rgba(71,85,105,.3);transition:background .15s;font-size:13px}
+.item:last-child{border-bottom:none}
+.item:hover{background:rgba(99,102,241,.06)}
+.item.done{opacity:.45}
+.item.done .item-title{text-decoration:line-through}
+
+.item input[type=checkbox]{width:18px;height:18px;accent-color:var(--done);cursor:pointer;flex-shrink:0;margin-top:1px}
+
+.item-content{flex:1;min-width:0}
+.item-title{font-size:13px;font-weight:600;margin-bottom:2px}
+.item-detail{font-size:11px;color:var(--text2);line-height:1.5}
+.item-file{font-family:'Cascadia Code','Fira Code',monospace;font-size:10px;color:var(--accent);background:rgba(99,102,241,.12);padding:1px 5px;border-radius:3px;display:inline-block;margin-top:3px}
+
+.item-severity{flex-shrink:0;padding:2px 8px;border-radius:5px;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.5px}
+.sev-critical{background:var(--critical-bg);color:var(--critical)}
+.sev-high{background:var(--high-bg);color:var(--high)}
+.sev-medium{background:var(--medium-bg);color:var(--medium)}
+.sev-low{background:var(--low-bg);color:var(--low)}
+.sev-info{background:var(--info-bg);color:var(--info)}
+
+.export-bar{position:fixed;bottom:0;left:0;right:0;background:rgba(15,23,42,.95);backdrop-filter:blur(12px);border-top:1px solid var(--border);padding:10px 24px;display:flex;justify-content:center;gap:10px;z-index:99}
+.export-btn{padding:9px 18px;border-radius:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;transition:all .2s}
+.export-btn.primary{background:var(--accent);color:#fff}
+.export-btn.primary:hover{background:#4f46e5}
+.export-btn.secondary{background:var(--surface);color:var(--text);border:1px solid var(--border)}
+.export-btn.secondary:hover{background:var(--surface2)}
+
+@media(max-width:640px){
+  .stats-bar{gap:6px}.stat{min-width:70px;padding:8px 10px}.stat .num{font-size:18px}
+  .filters{flex-direction:column}.filters input[type=text]{min-width:100%}
+  header h1{font-size:20px}
+}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header>
+    <h1>Happy MPM — Full System Audit Checklist</h1>
+    <p>ตรวจสอบครบทุกหน้า ทุก Section ทุกระบบ — ติ๊กเมื่อแก้ไขเสร็จ (บันทึกอัตโนมัติ)</p>
+    <div class="updated">อัปเดตล่าสุด: 6 มีนาคม 2026 — รวม 106 รายการ (เพิ่ม Production + AI Chat + Live Preview issues)</div>
+  </header>
+  <div class="stats-bar" id="stats"></div>
+  <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+  <div class="filters" id="filters"></div>
+  <div id="sections"></div>
+</div>
+<div class="export-bar">
+  <button class="export-btn secondary" onclick="resetAll()">รีเซ็ตทั้งหมด</button>
+  <button class="export-btn secondary" onclick="exportJSON()">Export JSON</button>
+  <button class="export-btn primary" onclick="exportMarkdown()">Export Markdown</button>
+</div>
+
+<script>
+const DATA = [
+  // ===================== CRITICAL =====================
+  {
+    id:"s-critical", title:"🔴 CRITICAL — ต้องแก้ทันที (ระบบพัง/ช่องโหว่ร้ายแรง)", severity:"critical",
+    items:[
+      {id:"cr1",title:"Rotate ทุก key ที่หลุดใน source code",detail:"OpenAI sk-proj-..., Supabase credentials fallback ใน supabase.js, .env.production มี VERCEL_OIDC_TOKEN, .env.backup มี credentials โปรเจคอื่น",file:"src/lib/supabase.js, api/.env, .env.production, .env.backup",severity:"critical"},
+      {id:"cr2",title:"เพิ่ม .env, .env.production, .env.backup, api/.env เข้า .gitignore",detail:".gitignore ไม่ครอบคลุมไฟล์เหล่านี้ — ถ้า commit จะหลุดหมด",file:".gitignore",severity:"critical"},
+      {id:"cr3",title:"ChatSystem JSON.parse crash",detail:"JSON.parse(localStorage.getItem('savedUserInfo')) ไม่มี try/catch — localStorage เสียจะ crash ทันที",file:"src/components/ChatSystem/ChatSystem.jsx L67",severity:"critical"},
+      {id:"cr4",title:"index.js root element null check",detail:"document.getElementById('root') อาจเป็น null → createRoot(null) จะ throw",file:"src/index.js L71",severity:"critical"},
+      {id:"cr5",title:"Header.jsx removeEventListener ใช้ function คนละตัว",detail:"addEventListener กับ removeEventListener ใช้ handler reference คนละตัว → listener ไม่ถูกลบ = memory leak",file:"src/pages/TravelRewards/components/Header.jsx L19-45",severity:"critical"},
+      {id:"cr6",title:"Branches.jsx resize listener ไม่มี cleanup",detail:"useEffect เพิ่ม resize listener แต่ไม่ return cleanup function → leak ทุกครั้งที่ re-render",file:"src/pages/Branches/Branches.jsx L1674-1709",severity:"critical"},
+      {id:"cr7",title:"ไม่มี Error Boundary ทั้งโปรเจค",detail:"error ใดๆ ใน component = จอขาวทั้งหมด — ต้องเพิ่ม ErrorBoundary ที่ root",file:"src/index.js",severity:"critical"},
+      {id:"cr8",title:"App.js localStorage parse ไม่มี try/catch",detail:"localStorage.getItem('introShown') parse logic อาจ crash ถ้า corrupt",file:"src/App.js L279-283",severity:"critical"},
+    ]
+  },
+  // ===================== CRITICAL - PRODUCTION =====================
+  {
+    id:"s-production", title:"🔴 CRITICAL — ปัญหาบน Production Host (ใช้งานจริงไม่ได้)", severity:"critical",
+    items:[
+      {id:"prod1",title:"AI Chat ใช้ไม่ได้บน Production",detail:"ChatSystem.jsx ใช้ process.env.REACT_APP_API_URL || 'http://localhost:3002' → บน host จริง API server (Express) ไม่ได้ deploy, ชี้ไป localhost:3002 ซึ่งไม่มี → AI ตอบไม่ได้เลย",file:"src/components/ChatSystem/ChatSystem.jsx L272",severity:"critical"},
+      {id:"prod2",title:"API Server (Express) ไม่ได้ deploy ขึ้น host",detail:"api/server.js รัน Express บน port 3002 — FileZilla upload เป็น static files เท่านั้น ไม่มี Node.js runtime → ต้อง deploy API แยก (Vercel Functions, Render, Railway) แล้วตั้ง REACT_APP_API_URL ตอน build",file:"api/server.js",severity:"critical"},
+      {id:"prod3",title:"Live Preview iframe ใช้ไม่ได้บน Production",detail:"ทุก editor (LiveEditor, KnowledgeBaseDetailEditor, ArticleDetailEditor, AwardDetailEditor, BusinessToolDetailEditor) ใช้ localhost:3000 เป็น iframe URL → บน host จริงโหลดไม่ได้ ต้องแก้ getPreviewUrl() ให้ detect production origin",file:"ทุก admin editor ที่มี iframe",severity:"critical"},
+      {id:"prod4",title:"Live Preview — Port detection ไม่ทำงานบน host",detail:"detectPort() ลอง fetch localhost:3000, 5173, 8080 → บน production ไม่มี port เหล่านี้ ต้องใช้ window.location.origin ของ public site แทน",file:"KnowledgeBaseDetailEditor, ArticleDetailEditor, etc.",severity:"critical"},
+      {id:"prod5",title:"CORS — API server ไม่รองรับ production origin",detail:"ALLOWED_ORIGINS default = 'localhost:3000,localhost:3001' → ต้องเพิ่ม happympm.com ใน env",file:"api/server.js L22-24",severity:"critical"},
+      {id:"prod6",title:"Chat Supabase Realtime ไม่เชื่อม admin บน host",detail:"admin ที่ /ADMIN-CMS/ กับ public ที่ / ใช้ Supabase Realtime แยกกัน แต่ ChatManager ใน admin อาจ subscribe channel ผิด session",file:"src/admin/pages/ChatManager.jsx, ChatSystem.jsx",severity:"high"},
+    ]
+  },
+  // ===================== HIGH - SECURITY =====================
+  {
+    id:"s-security", title:"🟠 HIGH — Security / ช่องโหว่", severity:"high",
+    items:[
+      {id:"hs1",title:"XSS — dangerouslySetInnerHTML ไม่ผ่าน DOMPurify",detail:"AwardsDetail และ NewsArticleDetail render CMS HTML โดยไม่ sanitize",file:"src/pages/AwardsDetail/AwardsDetail.jsx L198, src/pages/NewsArticleDetail/NewsArticleDetail.jsx L219",severity:"high"},
+      {id:"hs2",title:"postMessage ไม่เช็ค origin (App.js)",detail:"SCROLL_TO_SECTION, CHANGE_LANGUAGE รับจากทุก origin — attacker ส่ง message ได้",file:"src/App.js L313-361",severity:"high"},
+      {id:"hs3",title:"File upload ไม่มี server-side validation",detail:"media.js uploadFile() ไม่เช็คขนาด, MIME type, extension — bypass client-side ได้",file:"src/lib/api/media.js, MediaLibrary.jsx, admin editors",severity:"high"},
+      {id:"hs4",title:"AuthContext ตั้ง role:'admin' ก่อน profile โหลด",detail:"SIGNED_IN/TOKEN_REFRESHED ตั้ง role:'admin' ชั่วคราว ควรเป็น 'viewer'",file:"src/admin/contexts/AuthContext.jsx L111",severity:"high"},
+      {id:"hs5",title:"ไม่มี rate limiting (AI chat, contact form, login)",detail:"/api/ai-chat ไม่จำกัด request, contact form insert ไม่มี throttle, login ไม่มี lockout",file:"api/server.js, ContactUs.jsx, Login.jsx",severity:"medium"},
+      {id:"hs6",title:"Contact form ไม่มี input validation",detail:"ไม่จำกัดความยาว firstName, lastName, message — ส่งข้อมูลยาวมากได้",file:"src/components/ContactUs/ContactUs.jsx",severity:"medium"},
+      {id:"hs7",title:"select('*') overuse ใน Supabase queries",detail:"ดึงทุก column ทั้งที่ต้องการแค่บางส่วน — expose ข้อมูลเกินจำเป็น",file:"src/lib/api/*.js, api/server.js",severity:"medium"},
+    ]
+  },
+  // ===================== HIGH - BUGS =====================
+  {
+    id:"s-bugs", title:"🟠 HIGH — Bugs ที่ทำให้ Crash / ทำงานผิด", severity:"high",
+    items:[
+      {id:"hb1",title:"BusinessTools postMessage format ไม่ตรง",detail:"เช็ค event.data === 'CMS_REFRESH' (string) แต่ admin ส่ง {type:'CMS_REFRESH'} (object) → CMS refresh ไม่ทำงาน",file:"src/components/BusinessTools/BusinessTools.jsx L242",severity:"high"},
+      {id:"hb2",title:"BusinessToolDetail tool.images undefined crash",detail:"tool.images.length / .map ไม่เช็ค undefined — CMS tools อาจไม่มี images",file:"src/pages/BusinessToolDetail/BusinessToolDetail.jsx",severity:"high"},
+      {id:"hb3",title:"SocialActivityDetail details.split crash",detail:"content.details.map(d => d.split(':')) แต่ details อาจเป็น string ไม่ใช่ array",file:"src/pages/SocialActivityDetail/SocialActivityDetail.jsx L176",severity:"high"},
+      {id:"hb4",title:"NavbarTopbarEditor .map on undefined arrays",detail:"topbar.leftLinks, aboutDropdown.items, menuItems, rightButtons อาจ undefined",file:"src/admin/pages/NavbarTopbarEditor.jsx L398,466,560,687",severity:"high"},
+      {id:"hb5",title:"KnowledgeBaseDetail ไม่มี postMessage listener",detail:"Editor ส่ง KNOWLEDGE_BASE_PREVIEW_UPDATE แต่หน้า public ไม่ listen → live preview ไม่ทำงาน",file:"src/pages/KnowledgeBaseDetail/KnowledgeBaseDetail.jsx",severity:"high"},
+      {id:"hb6",title:"BusinessToolDetail ไม่มี postMessage listener",detail:"Editor ส่ง BUSINESS_TOOL_PREVIEW_UPDATE แต่หน้า public ไม่ listen → live preview ไม่ทำงาน",file:"src/pages/BusinessToolDetail/BusinessToolDetail.jsx",severity:"high"},
+      {id:"hb7",title:"NewsArticleDetail article.tags.map ไม่เช็ค null",detail:"article.tags อาจ undefined → .map() crash",file:"src/pages/NewsArticleDetail/NewsArticleDetail.jsx",severity:"high"},
+      {id:"hb8",title:"TravelRewards Home.jsx setInterval ไม่ clear",detail:"initCarousel สร้าง setInterval แต่ไม่ clear เมื่อ unmount → memory leak",file:"src/pages/TravelRewards/pages/Home.jsx L35-42",severity:"high"},
+      {id:"hb9",title:"MediaLibrary search handler ส่ง event แทน value",detail:"handleSearch(e.target.value) ควรเป็น onChange={(e) => handleSearch(e.target.value)}",file:"src/admin/pages/MediaLibrary.jsx",severity:"high"},
+      {id:"hb10",title:"CompletedTripsEditor storage path ผิด",detail:"upload ใช้ path public/${fileName} อาจไม่ตรงกับ bucket config",file:"src/admin/pages/CompletedTripsEditor.jsx",severity:"high"},
+      {id:"hb11",title:"FooterLinksEditor custom path __custom__ ไม่ทำงาน",detail:"เลือก __custom__ แล้ว onChange return early → path ไม่ถูก update",file:"src/admin/pages/FooterLinksEditor.jsx",severity:"high"},
+    ]
+  },
+  // ===================== HIGH - PERFORMANCE =====================
+  {
+    id:"s-perf", title:"🟠 HIGH — Performance / ขนาดโค้ด", severity:"high",
+    items:[
+      {id:"hp1",title:"Refactor CalendarOfEvents.jsx (~3,300 บรรทัด)",detail:"แยก MonthView, EventCard, EventModal, Filters เป็น component ย่อย",file:"src/pages/CalendarOfEvents/CalendarOfEvents.jsx",severity:"high"},
+      {id:"hp2",title:"Refactor LiveEditor.jsx (~3,000 บรรทัด)",detail:"แยก section editors, preview iframe, properties panel, toolbar",file:"src/admin/pages/LiveEditor.jsx",severity:"high"},
+      {id:"hp3",title:"Refactor Branches.jsx (~3,771 บรรทัด)",detail:"แยก map logic, branch card, edit mode, tooltips, drag handlers",file:"src/pages/Branches/Branches.jsx",severity:"high"},
+      {id:"hp4",title:"Lazy load heavy libraries",detail:"recharts (Analytics), @dnd-kit (VisualBuilder, SectionOrder), swiper (TravelRewards) import ตรง → เพิ่ม bundle",file:"admin/Analytics, VisualBuilder, TravelRewards",severity:"high"},
+      {id:"hp5",title:"App.js imports ทุกหน้าแบบ eager",detail:"ทุก page component import ตรง → initial bundle ใหญ่ ควรใช้ React.lazy()",file:"src/App.js L6-25",severity:"high"},
+      {id:"hp6",title:"สร้าง shared utils (getText, extractYoutubeId)",detail:"getText ซ้ำ 10+ ไฟล์, extractYoutubeId 4 ไฟล์ — ควรรวมเป็น src/lib/utils.js",file:"หลายไฟล์",severity:"high"},
+    ]
+  },
+  // ===================== CMS MISSING =====================
+  {
+    id:"s-cms", title:"📝 หน้าที่ยังไม่มีระบบ CMS / ข้อมูล Hardcoded", severity:"high",
+    items:[
+      {id:"cms1",title:"ExecutiveDetail — NO CMS ทั้งหมด",detail:"ข้อมูลผู้บริหาร 8 คน hardcoded (ชื่อ, ตำแหน่ง, รูป, bio, role) ต้องสร้าง admin editor",file:"src/pages/ExecutiveDetail/ExecutiveDetail.jsx",severity:"high"},
+      {id:"cms2",title:"ExecutiveCommittee — NO CMS + ไม่รองรับภาษา",detail:"Executives hardcoded, ignores language prop → แสดงภาษาไทยเท่านั้น",file:"src/components/ExecutiveCommittee/ExecutiveCommittee.jsx",severity:"high"},
+      {id:"cms3",title:"AllPromotions — ข้อมูลโปรโมชัน Hardcoded ทั้งหมด",detail:"Promotions array (ids, images, titles, descriptions, durations) hardcoded",file:"src/pages/AllPromotions/AllPromotions.jsx",severity:"high"},
+      {id:"cms4",title:"PromotionDetail — ข้อมูลโปรโมชัน Hardcoded",detail:"Promotions array (includes, terms, value) hardcoded",file:"src/pages/PromotionDetail/PromotionDetail.jsx",severity:"high"},
+      {id:"cms5",title:"JoinOurBusiness — การ์ดธุรกิจ Hardcoded",detail:"Business cards 1-8 ทั้งหมด hardcoded รวมถึงรูปภาพ",file:"src/pages/JoinOurBusiness/JoinOurBusiness.jsx",severity:"high"},
+      {id:"cms6",title:"JoinOurBusinessDetail — รายละเอียดธุรกิจ Hardcoded",detail:"Business data 1-8 (details, requirements, benefits) hardcoded",file:"src/pages/JoinOurBusinessDetail/JoinOurBusinessDetail.jsx",severity:"high"},
+      {id:"cms7",title:"TravelRewards sub-pages — NO CMS",detail:"Home, About, Habsburg pages ทั้งหมด standalone ไม่มี Supabase",file:"src/pages/TravelRewards/*",severity:"medium"},
+      {id:"cms8",title:"History — รูปภาพ + stats Hardcoded",detail:"ข้อความจาก translations แต่รูปภาพ, growth stats (25+, 30+, 5, 100K+) hardcoded",file:"src/pages/History/History.jsx",severity:"medium"},
+      {id:"cms9",title:"Vision — รูปภาพ Hardcoded",detail:"ข้อความจาก translations แต่รูปภาพ /images/about.jpg hardcoded",file:"src/pages/Vision/Vision.jsx",severity:"low"},
+      {id:"cms10",title:"Footer — ที่อยู่, social links Hardcoded",detail:"Quick links จาก CMS แต่ที่อยู่, เบอร์โทร, social URLs, copyright hardcoded + ไม่รองรับ id/ms/ar",file:"src/components/Footer/Footer.jsx",severity:"low"},
+      {id:"cms11",title:"ContactUs — map iframe, social links Hardcoded",detail:"Form submit ได้แต่ Google Maps iframe, phone, email, hours, social hardcoded",file:"src/components/ContactUs/ContactUs.jsx",severity:"low"},
+      {id:"cms12",title:"NavBar — Product dropdown content Hardcoded",detail:"Product categories, images, items ใน dropdown hardcoded",file:"src/components/NavBar/NavBar.jsx",severity:"low"},
+    ]
+  },
+  // ===================== LIVE EDITOR STATUS =====================
+  {
+    id:"s-liveeditor", title:"🖥️ LiveEditor / Live Preview — สถานะการเชื่อมต่อ", severity:"info",
+    items:[
+      {id:"le1",title:"HeroSection ✅ มี Live Preview",detail:"CMS_REFRESH_HERO → ทำงานปกติ",file:"src/components/HeroSection/HeroSection.jsx",severity:"info"},
+      {id:"le2",title:"ProductsSection ✅ มี Live Preview",detail:"CMS_REFRESH_PRODUCTS → ทำงานปกติ",file:"src/components/ProductsSection/ProductsSection.jsx",severity:"info"},
+      {id:"le3",title:"PromotionsSection ✅ มี Live Preview",detail:"CMS_REFRESH_PROMOTIONS → ทำงานปกติ",file:"src/components/PromotionsSection/PromotionsSection.jsx",severity:"info"},
+      {id:"le4",title:"KnowledgeBase ✅ มี Live Preview",detail:"CMS_REFRESH_KNOWLEDGE-BASE → ทำงานปกติ",file:"src/components/KnowledgeBase/KnowledgeBase.jsx",severity:"info"},
+      {id:"le5",title:"NewsArticles ✅ มี Live Preview",detail:"realtime + postMessage → ทำงานปกติ",file:"src/components/NewsArticles/NewsArticles.jsx",severity:"info"},
+      {id:"le6",title:"TravelRewardsSection ✅ มี Live Preview",detail:"CMS_REFRESH_TRAVEL-REWARDS → ทำงานปกติ",file:"src/components/TravelRewardsSection/TravelRewardsSection.jsx",severity:"info"},
+      {id:"le7",title:"NavBar ✅ มี Live Preview (partial)",detail:"CMS_REFRESH_NAVBAR-TOPBAR → ทำงาน แต่ NavbarTopbarEditor ไม่มี iframe preview",file:"src/components/NavBar/NavBar.jsx",severity:"info"},
+      {id:"le8",title:"AwardsDetail ✅ มี Live Preview",detail:"CMS_REFRESH_AWARDS → ทำงานปกติ",file:"src/pages/AwardsDetail/AwardsDetail.jsx",severity:"info"},
+      {id:"le9",title:"NewsArticleDetail ✅ มี Live Preview",detail:"ARTICLE_PREVIEW_UPDATE → ทำงานปกติ",file:"src/pages/NewsArticleDetail/NewsArticleDetail.jsx",severity:"info"},
+      {id:"le10",title:"KnowledgeBaseDetail ❌ ไม่มี listener",detail:"Editor ส่ง KNOWLEDGE_BASE_PREVIEW_UPDATE แต่หน้า public ไม่ listen",file:"src/pages/KnowledgeBaseDetail/KnowledgeBaseDetail.jsx",severity:"high"},
+      {id:"le11",title:"BusinessToolDetail ❌ ไม่มี listener",detail:"Editor ส่ง BUSINESS_TOOL_PREVIEW_UPDATE แต่หน้า public ไม่ listen",file:"src/pages/BusinessToolDetail/BusinessToolDetail.jsx",severity:"high"},
+      {id:"le12",title:"BusinessTools component — postMessage bug",detail:"เช็ค string แทน object → CMS refresh ไม่ trigger (ซ้ำกับ hb1)",file:"src/components/BusinessTools/BusinessTools.jsx L242",severity:"high"},
+      {id:"le13",title:"FooterLinksEditor ❌ ไม่มี live preview",detail:"ไม่มี iframe preview",file:"src/admin/pages/FooterLinksEditor.jsx",severity:"medium"},
+      {id:"le14",title:"CompletedTripsEditor ❌ ไม่มี live preview",detail:"ไม่มี iframe preview",file:"src/admin/pages/CompletedTripsEditor.jsx",severity:"medium"},
+      {id:"le15",title:"VisualBuilder ❌ Preview ไม่ทำงาน",detail:"Preview button มี แต่ไม่มี handler, Undo/Redo disabled",file:"src/admin/pages/VisualBuilder.jsx",severity:"medium"},
+      {id:"le16",title:"⚠️ ดูรายละเอียดใน section 'ปัญหาบน Production Host'",detail:"Live Preview + AI Chat บน production → ดู section CRITICAL — Production Host ด้านบน",file:"ดู section prod1-prod6",severity:"info"},
+    ]
+  },
+  // ===================== MEDIUM =====================
+  {
+    id:"s-medium", title:"🔵 MEDIUM — ปรับปรุง / Edge Cases", severity:"medium",
+    items:[
+      {id:"m1",title:"AwardDetailEditor — ไม่เช็ค unsaved changes ตอนกด back",detail:"กดกลับโดยไม่ warn ว่ามีข้อมูลที่ยังไม่บันทึก",file:"src/admin/pages/AwardDetailEditor.jsx",severity:"medium"},
+      {id:"m2",title:"Status.jsx — setPinging undefined",detail:"pingSupabase ใช้ setPinging แต่ไม่ได้ define state",file:"src/admin/pages/Status.jsx",severity:"medium"},
+      {id:"m3",title:"TranslationsManager — migrateAllStatic skipCount ไม่ increment",detail:"skipCount ประกาศแต่ไม่เพิ่มค่า → logic ผิด",file:"src/admin/pages/TranslationsManager.jsx",severity:"medium"},
+      {id:"m4",title:"ApiTest — saveHiddenCategories ขาด await",detail:"insert branch ไม่มี await → อาจ race condition",file:"src/admin/pages/ApiTest.jsx",severity:"medium"},
+      {id:"m5",title:"ChatSystem — JSON.parse chatCategory ไม่มี try/catch",detail:"localStorage.getItem('chatCategory') parse อาจ crash",file:"src/components/ChatSystem/ChatSystem.jsx L270",severity:"medium"},
+      {id:"m6",title:"AllKnowledgeBase — t.common ไม่มี optional chaining",detail:"crash ถ้า t เป็น undefined",file:"src/pages/AllKnowledgeBase/AllKnowledgeBase.jsx",severity:"medium"},
+      {id:"m7",title:"ContactUs — t.contactUs ไม่มี optional chaining",detail:"crash ถ้า t เป็น undefined",file:"src/components/ContactUs/ContactUs.jsx",severity:"medium"},
+      {id:"m8",title:"JoinOurBusinessDetail — t optional chaining ไม่ consistent",detail:"บางที่เช็ค t?.common?.about บางที่ไม่เช็ค",file:"src/pages/JoinOurBusinessDetail/JoinOurBusinessDetail.jsx",severity:"medium"},
+      {id:"m9",title:"AllNews getText fallback ผิด",detail:"getText ใช้ field+'Th' เป็น default แต่สำหรับ id/ms/ar อาจไม่ถูก",file:"src/pages/AllNews/AllNews.jsx",severity:"medium"},
+      {id:"m10",title:"KnowledgeBaseDetail loadArticlesFromCMS ไม่ depend ภาษา",detail:"ใช้ content_value_th เสมอ → ภาษาอื่นอาจไม่ update",file:"src/pages/KnowledgeBaseDetail/KnowledgeBaseDetail.jsx L46-49",severity:"medium"},
+      {id:"m11",title:"NavBar loadKnowledgeArticles ใช้ maybeSingle() ผิด",detail:"query อาจ return หลาย rows แต่ใช้ maybeSingle()",file:"src/components/NavBar/NavBar.jsx L43-60",severity:"medium"},
+      {id:"m12",title:"Images ไม่มี loading='lazy'",detail:"History, NavBar, MediaLibrary, admin editors หลายรูปไม่มี lazy loading",file:"History.jsx, NavBar.jsx, MediaLibrary.jsx",severity:"medium"},
+      {id:"m13",title:"NavbarTopbarEditor — Supabase save ไม่เช็ค error",detail:"update/insert ไม่เช็ค {error} ก่อน show success",file:"src/admin/pages/NavbarTopbarEditor.jsx L165-168",severity:"medium"},
+      {id:"m14",title:"BusinessToolDetailEditor — save ไม่ write id/ms/ar",detail:"บันทึกแค่ th/en แต่ไม่เขียน id, ms, ar",file:"src/admin/pages/BusinessToolDetailEditor.jsx",severity:"medium"},
+      {id:"m15",title:"ArticleDetailEditor — ไม่รองรับ ID/MS/AR",detail:"มีแค่ TH/EN fields สำหรับ article content",file:"src/admin/pages/ArticleDetailEditor.jsx",severity:"medium"},
+      {id:"m16",title:"setTimeout setState after unmount (BusinessTools)",detail:"setCurrentPage อาจถูกเรียกหลัง unmount",file:"src/components/BusinessTools/BusinessTools.jsx L275-283",severity:"medium"},
+      {id:"m17",title:"EpisodePlayerPage — video listeners ไม่ remove",detail:"playing/pause event listeners ไม่ถูก cleanup",file:"src/features/learning/pages/EpisodePlayerPage.tsx L803-823",severity:"medium"},
+      {id:"m18",title:"N+1 query — uploadMultipleFiles ลูป sequential",detail:"ควรใช้ Promise.all สำหรับ parallel uploads",file:"src/lib/api/media.js L122-132",severity:"medium"},
+    ]
+  },
+  // ===================== LOW =====================
+  {
+    id:"s-low", title:"🟢 LOW — Cleanup / Nice-to-have", severity:"low",
+    items:[
+      {id:"l1",title:"ลบ unused dependencies",detail:"node-cron ไม่ได้ใช้ใน React SPA",file:"package.json",severity:"low"},
+      {id:"l2",title:"AbortSignal.timeout ไม่รองรับ browser เก่า",detail:"BusinessToolDetailEditor ใช้ AbortSignal.timeout(300) ที่บาง browser ไม่มี",file:"src/admin/pages/BusinessToolDetailEditor.jsx L377",severity:"low"},
+      {id:"l3",title:"App.js unused state (promotionsScrolled, etc.)",detail:"setPromotionsScrolled, setActivePromotionDot ประกาศแต่ไม่ใช้ค่า",file:"src/App.js L46-47",severity:"low"},
+      {id:"l4",title:"Hash-based navigation ใน Promotions/JoinBusiness",detail:"ใช้ window.location.hash แทน navigate() → ไม่ consistent กับ React Router",file:"AllPromotions.jsx, JoinOurBusiness.jsx",severity:"low"},
+      {id:"l5",title:"document.body null guard (AppRoutes)",detail:"document.body อาจ null ใน SSR/edge cases",file:"src/AppRoutes.jsx L134-135",severity:"low"},
+      {id:"l6",title:"HelpGuide — เป็น static ไม่ editable",detail:"Help content hardcoded ไม่มี search/edit",file:"src/admin/pages/HelpGuide.jsx",severity:"low"},
+      {id:"l7",title:"Login — ไม่มี Forgot Password / Remember Me",detail:"ยังขาด forgot password link และ remember me checkbox",file:"src/admin/pages/Login.jsx",severity:"low"},
+      {id:"l8",title:"Users — ไม่มี pagination",detail:"แสดงทุก user ในหน้าเดียว ถ้าเยอะจะช้า",file:"src/admin/pages/Users.jsx",severity:"low"},
+      {id:"l9",title:"Analytics — ไม่มี export / date range picker",detail:"ดูได้แค่ all-time ไม่มี filter ตามช่วงเวลา",file:"src/admin/pages/Analytics.jsx",severity:"low"},
+      {id:"l10",title:"Dashboard — ไม่มี activity feed / recent changes",detail:"ขาด recent activity log",file:"src/admin/pages/Dashboard.jsx",severity:"low"},
+    ]
+  },
+  // ===================== CMS STATUS TABLE =====================
+  {
+    id:"s-cms-status", title:"📊 สรุปสถานะ CMS Integration ทุกหน้า", severity:"info",
+    items:[
+      {id:"st1",title:"FULL CMS ✅ HeroSection",detail:"ข้อมูลทั้งหมดจาก CMS + Live Preview",file:"src/components/HeroSection/HeroSection.jsx",severity:"info"},
+      {id:"st2",title:"FULL CMS ✅ ProductsSection",detail:"ข้อมูลทั้งหมดจาก CMS + Live Preview",file:"src/components/ProductsSection/ProductsSection.jsx",severity:"info"},
+      {id:"st3",title:"FULL CMS ✅ PromotionsSection (homepage)",detail:"ข้อมูลจาก CMS + Live Preview (ไม่ใช่หน้า AllPromotions)",file:"src/components/PromotionsSection/PromotionsSection.jsx",severity:"info"},
+      {id:"st4",title:"FULL CMS ✅ KnowledgeBase",detail:"Articles จาก CMS + Live Preview",file:"src/components/KnowledgeBase/KnowledgeBase.jsx",severity:"info"},
+      {id:"st5",title:"FULL CMS ✅ NewsArticles",detail:"Articles + Categories จาก CMS + Live Preview",file:"src/components/NewsArticles/NewsArticles.jsx",severity:"info"},
+      {id:"st6",title:"FULL CMS ✅ BusinessTools",detail:"Tools จาก CMS + realtime (มี postMessage bug)",file:"src/components/BusinessTools/BusinessTools.jsx",severity:"info"},
+      {id:"st7",title:"FULL CMS ✅ TravelRewardsSection (homepage)",detail:"Rewards จาก CMS + Live Preview",file:"src/components/TravelRewardsSection/TravelRewardsSection.jsx",severity:"info"},
+      {id:"st8",title:"FULL CMS ✅ NewsArticleDetail",detail:"Articles จาก CMS + Live Preview (ARTICLE_PREVIEW_UPDATE)",file:"src/pages/NewsArticleDetail/NewsArticleDetail.jsx",severity:"info"},
+      {id:"st9",title:"FULL CMS ✅ AllNews",detail:"Articles + Categories จาก CMS",file:"src/pages/AllNews/AllNews.jsx",severity:"info"},
+      {id:"st10",title:"FULL CMS ✅ KnowledgeBaseDetail",detail:"Articles จาก CMS (แต่ live preview ไม่ทำงาน)",file:"src/pages/KnowledgeBaseDetail/KnowledgeBaseDetail.jsx",severity:"info"},
+      {id:"st11",title:"FULL CMS ✅ AwardsDetail",detail:"Awards จาก CMS + Live Preview",file:"src/pages/AwardsDetail/AwardsDetail.jsx",severity:"info"},
+      {id:"st12",title:"FULL CMS ✅ SocialActivity / SocialActivityDetail",detail:"Activities จาก CMS + realtime",file:"src/pages/SocialActivity*",severity:"info"},
+      {id:"st13",title:"FULL CMS ✅ BusinessToolDetail",detail:"Tools จาก CMS + completed_trips (live preview bug)",file:"src/pages/BusinessToolDetail/BusinessToolDetail.jsx",severity:"info"},
+      {id:"st14",title:"PARTIAL ⚠️ BranchesNew",detail:"branch_map_positions + branches จาก DB แต่ labels จาก translations",file:"src/pages/BranchesNew/BranchesNew.jsx",severity:"info"},
+      {id:"st15",title:"PARTIAL ⚠️ CalendarOfEvents",detail:"Events จาก calendar_events, hidden_categories จาก CMS แต่ defaults/colors hardcoded",file:"src/pages/CalendarOfEvents/CalendarOfEvents.jsx",severity:"info"},
+      {id:"st16",title:"PARTIAL ⚠️ NavBar",detail:"Topbar/Navbar settings จาก CMS แต่ product dropdown hardcoded",file:"src/components/NavBar/NavBar.jsx",severity:"info"},
+      {id:"st17",title:"PARTIAL ⚠️ Footer",detail:"Quick links จาก CMS แต่ address/social/copyright hardcoded",file:"src/components/Footer/Footer.jsx",severity:"info"},
+      {id:"st18",title:"TRANSLATION ONLY 📝 History",detail:"ข้อความจาก translations, รูป/stats hardcoded",file:"src/pages/History/History.jsx",severity:"info"},
+      {id:"st19",title:"TRANSLATION ONLY 📝 Vision",detail:"ข้อความจาก translations, รูป hardcoded",file:"src/pages/Vision/Vision.jsx",severity:"info"},
+      {id:"st20",title:"NO CMS ❌ ExecutiveDetail / ExecutiveCommittee",detail:"ทุกอย่าง hardcoded — ต้องสร้าง editor ใหม่",file:"ExecutiveDetail.jsx, ExecutiveCommittee.jsx",severity:"info"},
+      {id:"st21",title:"NO CMS ❌ AllPromotions / PromotionDetail",detail:"ทุกอย่าง hardcoded — ต้องสร้าง promotions manager",file:"AllPromotions.jsx, PromotionDetail.jsx",severity:"info"},
+      {id:"st22",title:"NO CMS ❌ JoinOurBusiness / JoinOurBusinessDetail",detail:"ทุกอย่าง hardcoded — ต้องสร้าง editor ใหม่",file:"JoinOurBusiness*.jsx",severity:"info"},
+      {id:"st23",title:"NO CMS ❌ TravelRewards sub-pages",detail:"Standalone app ไม่มี Supabase เลย",file:"src/pages/TravelRewards/*",severity:"info"},
+    ]
+  }
+];
+
+const STORAGE_KEY = 'happympm_audit_v2';
+function loadState(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY))||{}}catch{return{}}}
+function saveState(s){localStorage.setItem(STORAGE_KEY,JSON.stringify(s))}
+let state=loadState(),filterSev='all',filterSearch='',collapsed={};
+
+function allItems(){return DATA.flatMap(s=>s.items)}
+function vis(i){
+  if(filterSev!=='all'&&i.severity!==filterSev)return false;
+  if(filterSearch){const q=filterSearch.toLowerCase();return i.title.toLowerCase().includes(q)||i.detail.toLowerCase().includes(q)||i.file.toLowerCase().includes(q)}
+  return true;
+}
+
+function render(){
+  const all=allItems(),total=all.length,done=all.filter(i=>state[i.id]).length,pct=total?Math.round(done/total*100):0;
+  const actionable=all.filter(i=>i.severity!=='info');
+  const actionDone=actionable.filter(i=>state[i.id]).length;
+  const actionPct=actionable.length?Math.round(actionDone/actionable.length*100):0;
+
+  document.getElementById('stats').innerHTML=`
+    <div class="stat done"><div class="num">${actionDone}/${actionable.length}</div><div class="label">แก้ไขแล้ว (${actionPct}%)</div></div>
+    <div class="stat critical"><div class="num">${all.filter(i=>i.severity==='critical'&&!state[i.id]).length}</div><div class="label">Critical</div></div>
+    <div class="stat high"><div class="num">${all.filter(i=>i.severity==='high'&&!state[i.id]).length}</div><div class="label">High</div></div>
+    <div class="stat medium"><div class="num">${all.filter(i=>i.severity==='medium'&&!state[i.id]).length}</div><div class="label">Medium</div></div>
+    <div class="stat low"><div class="num">${all.filter(i=>i.severity==='low'&&!state[i.id]).length}</div><div class="label">Low</div></div>
+    <div class="stat info"><div class="num">${all.filter(i=>i.severity==='info').length}</div><div class="label">Info/Status</div></div>
+  `;
+  document.getElementById('progress').style.width=actionPct+'%';
+  document.getElementById('filters').innerHTML=`
+    <input type="text" placeholder="🔍 ค้นหา..." value="${filterSearch}" oninput="filterSearch=this.value;render()">
+    ${['all','critical','high','medium','low','info'].map(s=>`<button class="fbtn ${filterSev===s?'active':''}" onclick="filterSev='${s}';render()">${s==='all'?'ทั้งหมด':s.toUpperCase()}</button>`).join('')}
+  `;
+  let html='';
+  DATA.forEach(sec=>{
+    const v=sec.items.filter(vis);if(!v.length)return;
+    const d=v.filter(i=>state[i.id]).length,isOpen=!collapsed[sec.id];
+    html+=`<div class="section">
+      <div class="section-header ${isOpen?'open':''}" onclick="collapsed['${sec.id}']=!collapsed['${sec.id}'];render()">
+        <span class="arrow">▶</span><h2>${sec.title}</h2>
+        <span class="section-count">${d}/${v.length}</span>
+        <span class="badge badge-${sec.severity}">${v.length} รายการ</span>
+      </div>
+      <div class="items ${isOpen?'':'collapsed'}">
+        ${v.map(i=>`<div class="item ${state[i.id]?'done':''}">
+          <input type="checkbox" ${state[i.id]?'checked':''} onchange="toggle('${i.id}')">
+          <div class="item-content">
+            <div class="item-title">${i.title}</div>
+            <div class="item-detail">${i.detail}</div>
+            <span class="item-file">${i.file}</span>
+          </div>
+          <span class="item-severity sev-${i.severity}">${i.severity}</span>
+        </div>`).join('')}
+      </div>
+    </div>`;
+  });
+  document.getElementById('sections').innerHTML=html;
+}
+
+function toggle(id){state[id]=!state[id];saveState(state);render()}
+function resetAll(){if(!confirm('รีเซ็ตทั้งหมด?')){return}state={};saveState(state);render()}
+function exportJSON(){
+  const d=allItems().map(i=>({id:i.id,title:i.title,severity:i.severity,done:!!state[i.id],file:i.file}));
+  const b=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='audit-checklist.json';a.click();
+}
+function exportMarkdown(){
+  let md='# Happy MPM Full System Audit\n\n';
+  DATA.forEach(s=>{md+=`## ${s.title}\n\n`;s.items.forEach(i=>{md+=`- [${state[i.id]?'x':' '}] **${i.title}** (${i.severity.toUpperCase()})\n  - ${i.detail}\n  - \`${i.file}\`\n\n`})});
+  const b=new Blob([md],{type:'text/markdown'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='audit-checklist.md';a.click();
+}
+render();
+</script>
+</body>
+</html>
