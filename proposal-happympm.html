@@ -440,6 +440,16 @@
       แผนงานแบ่งออกเป็น 5 ระยะ เรียงตามลำดับความสำคัญ เริ่มจากปัญหาวิกฤตที่ส่งผลกระทบต่อการใช้งานจริงบน Production ไปจนถึงการพัฒนาระบบ CMS เพิ่มเติมและการทดสอบส่งมอบ
     </div>
 
+    <h3 style="margin-top:10px">2.1 ปัญหาที่ตรวจพบเพิ่มเติม (Deep Audit รอบล่าสุด)</h3>
+    <ul class="task-list">
+      <li><strong>API Server อาจเปิดใช้งานได้โดยไม่ต้องมี Key</strong> หากไม่ได้ตั้งค่า <span class="pill">API_KEYS</span> ใน environment (เสี่ยงโดนยิง API/กินค่าใช้จ่าย)</li>
+      <li><strong>พบไฟล์ <span class="pill">api/.env</span> อยู่ในโปรเจกต์</strong> (เสี่ยงหลุด Secret หากมีการอัปโหลด/แชร์ไฟล์)</li>
+      <li><strong>User Management พึ่งพา RLS ฝั่งฐานข้อมูล</strong> และมีบางงานทำจากฝั่ง client (ต้อง harden policy/ย้ายไป server/edge function)</li>
+      <li><strong>Section Order / Live Preview บน Production ยัง hardcode localhost</strong> ทำให้ใช้งานจริงไม่ได้และมีความเสี่ยงด้าน <span class="pill">postMessage</span></li>
+      <li><strong>ChatManager/Inbox ไม่มี pagination และมีการ reload ถี่</strong> เมื่อข้อมูลโตจะช้าหนัก/หน่วง (ควรทำ pagination + incremental update)</li>
+      <li><strong>Backup Import เป็น destructive</strong> (ลบทั้งตารางก่อน import) ต้องปรับให้ปลอดภัยเพื่อกันข้อมูลหายทั้งระบบ</li>
+    </ul>
+
     <!-- Phase 1 -->
     <div class="phase">
       <div class="phase-header">
@@ -603,6 +613,21 @@
     <!-- Summary Table -->
     <h2>4. สรุปภาพรวม</h2>
 
+    <div class="note-box" style="margin-top:10px">
+      <strong>สรุปประเด็นที่ตรวจพบเพิ่มเติม (Deep Audit รอบล่าสุด):</strong>
+      <ul style="margin-top:8px; padding-left:18px">
+        <li><strong>API Server อาจเปิดใช้งานได้โดยไม่ต้องมี Key</strong> หากไม่ได้ตั้งค่า <span class="pill">API_KEYS</span> (เสี่ยงโดนยิง API/กินค่าใช้จ่าย) <span class="pill">เรท: 4,000 บาท</span></li>
+        <li><strong>พบไฟล์ <span class="pill">api/.env</span> ในโปรเจกต์</strong> (เสี่ยงหลุด Secret หากมีการอัปโหลด/แชร์ไฟล์) <span class="pill">เรท: 3,000 บาท</span></li>
+        <li><strong>User Management/Permissions พึ่งพา RLS ฝั่งฐานข้อมูล</strong> และบางส่วนทำจาก client (ต้อง harden policy/ย้ายงานเสี่ยงไป server/edge function) <span class="pill">เรท: 5,000 บาท</span></li>
+        <li><strong>Section Order / Live Preview บน Production ยัง hardcode localhost</strong> ทำให้ใช้งานจริงไม่ได้ และมีความเสี่ยงด้าน <span class="pill">postMessage</span> <span class="pill">เรท: 2,000 บาท</span> (Section Order) <span class="pill">6,000 บาท</span> (Live Preview)</li>
+        <li><strong>ChatManager/Inbox ไม่มี pagination และมีการ reload ถี่</strong> เมื่อข้อมูลโตจะช้าหนัก/หน่วง (ควรทำ pagination + incremental update) <span class="pill">เรท: 5,000 บาท</span></li>
+        <li><strong>Backup Import เป็น destructive</strong> (ลบทั้งตารางก่อน import) ต้องปรับให้ปลอดภัยเพื่อกันข้อมูลหายทั้งระบบ <span class="pill">เรท: 4,000 บาท</span></li>
+      </ul>
+      <div style="margin-top:8px; font-size:12px; color:#4b5563">
+        รายการข้างต้นถูกสะท้อนเป็น “เรทราคางานเพิ่มเติม” ในหัวข้อ <strong>5.1</strong> เพื่อให้ประเมินงบงานเสริม/งานต่อยอดได้ชัดเจน
+      </div>
+    </div>
+
     <table>
       <thead>
         <tr>
@@ -663,6 +688,58 @@
       ระยะเวลาดำเนินงานรวม 8 สัปดาห์ (2 เดือน) นับจากวันเริ่มต้นสัญญา โดย Phase 3 และ Phase 4 อาจดำเนินการคู่ขนานบางส่วนเพื่อให้ทันกำหนดส่งมอบ ขอบเขตงานอาจมีการปรับเปลี่ยนตามสถานการณ์จริงโดยข้อตกลงร่วมกันของทั้งสองฝ่าย
     </div>
 
+    <h3 style="margin-top:16px">สรุปราคางานเพิ่มเติมจากข้อ 5.1 (ไม่รวมอยู่ใน 60,000 บาท)</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>งานเพิ่มเติม</th>
+          <th class="text-center" style="width:160px">เรทราคาโดยประมาณ</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>แก้ Live Preview ให้ใช้งานบน Host จริง</td>
+          <td class="text-center">6,000 บาท</td>
+        </tr>
+        <tr>
+          <td>ติดตั้ง/ย้าย AI Chat API ไป Production</td>
+          <td class="text-center">8,000 บาท</td>
+        </tr>
+        <tr>
+          <td>API Hardening (API Key + Rate Limit)</td>
+          <td class="text-center">4,000 บาท</td>
+        </tr>
+        <tr>
+          <td>จัดการ Secret/ENV ให้ปลอดภัย</td>
+          <td class="text-center">3,000 บาท</td>
+        </tr>
+        <tr>
+          <td>Users/Permissions Hardening</td>
+          <td class="text-center">5,000 บาท</td>
+        </tr>
+        <tr>
+          <td>แก้ Section Order ให้ใช้งานบน Host จริง</td>
+          <td class="text-center">2,000 บาท</td>
+        </tr>
+        <tr>
+          <td>Hardening ความปลอดภัย (XSS / postMessage / Upload)</td>
+          <td class="text-center">6,000 บาท</td>
+        </tr>
+        <tr>
+          <td>ทำระบบ Backup/Restore ให้ปลอดภัย</td>
+          <td class="text-center">4,000 บาท</td>
+        </tr>
+        <tr>
+          <td>ปรับ Realtime/CRUD ให้ลื่นเมื่อข้อมูลโต</td>
+          <td class="text-center">5,000 บาท</td>
+        </tr>
+        <tr class="total-row">
+          <td><strong>รวมเรทราคางานเพิ่มเติม (กรณีเลือกทำครบทุกหัวข้อ)</strong></td>
+          <td class="text-center"><strong>43,000 บาท</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
     <h2>5. เรทราคาสำหรับงานเพิ่มเติมในอนาคต</h2>
     <p>หากมีงานเพิ่มเติมนอกเหนือจากขอบเขตที่ระบุในข้อ 2 (เช่น ฟีเจอร์ใหม่, ปรับดีไซน์ครั้งใหญ่, เชื่อมต่อระบบภายนอกเพิ่มเติม) สามารถใช้เรทราคาประเมินเบื้องต้นดังนี้</p>
 
@@ -694,6 +771,69 @@
           <td><strong>งานปรับปรุงโครงสร้างระบบ</strong></td>
           <td>Refactor ส่วนสำคัญ, แยก Service, ปรับ Performance เฉพาะส่วน</td>
           <td class="text-center">25,000 – 45,000 บาท/รอบงาน</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="note-box" style="margin-top:14px">
+      <strong>หมายเหตุ:</strong>
+      เรทราคาด้านล่างเป็น “เรทแยก” สำหรับงานแก้ปัญหา/งานระบบที่มักเกิดขึ้นเมื่อใช้งานจริงบน Production (นอกเหนือจากงานหลัก 2 เดือน) เพื่อใช้ประเมินงบเบื้องต้นให้หัวหน้า/ลูกค้า
+    </div>
+
+    <h3 style="margin-top:16px">5.1 เรทราคาโดยประมาณ — งานแก้ปัญหาที่มักเจอบน Production</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>ประเภทปัญหา/งานที่เพิ่ม</th>
+          <th>ขอบเขตตัวอย่าง</th>
+          <th class="text-center" style="width:140px">เรทราคาโดยประมาณ</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>แก้ Live Preview ให้ใช้งานบน Host จริง</strong></td>
+          <td>ปรับ origin/targetOrigin, ตัด localhost detection, ทำ whitelist + validate `postMessage` ให้ปลอดภัย</td>
+          <td class="text-center">6,000 บาท</td>
+        </tr>
+        <tr>
+          <td><strong>ติดตั้ง/ย้าย AI Chat API ไป Production</strong></td>
+          <td>Deploy Node/Serverless, ตั้ง ENV, ปรับ CORS, ปรับ `REACT_APP_API_URL`, ตรวจ health/monitor</td>
+          <td class="text-center">8,000 บาท</td>
+        </tr>
+        <tr>
+          <td><strong>API Hardening (API Key + Rate Limit)</strong></td>
+          <td>บังคับใช้ API key ทุก endpoint ที่จำเป็น, เพิ่ม rate limit/throttle, ปรับ CORS origin whitelist และ logging ที่พอเหมาะ</td>
+          <td class="text-center">4,000 บาท</td>
+        </tr>
+        <tr>
+          <td><strong>จัดการ Secret/ENV ให้ปลอดภัย</strong></td>
+          <td>ลบไฟล์ .env ออกจากโปรเจกต์, ตั้งค่า .gitignore, rotate keys, ย้ายไปใช้ environment ของ host และตรวจไม่ให้ key hardcode ใน source</td>
+          <td class="text-center">3,000 บาท</td>
+        </tr>
+        <tr>
+          <td><strong>Users/Permissions Hardening</strong></td>
+          <td>ทบทวน RLS/Policy สำหรับ profiles/pages/settings, ย้ายงานเสี่ยงไป Edge Function/Server (เช่น delete auth user), ปรับ role guard ใน action สำคัญ</td>
+          <td class="text-center">5,000 บาท</td>
+        </tr>
+        <tr>
+          <td><strong>แก้ Section Order ให้ใช้งานบน Host จริง</strong></td>
+          <td>ตัดการ hardcode `http://localhost:3000`, ใช้ origin ที่ถูกต้องบน production, ปรับ refresh/preview ให้เสถียร</td>
+          <td class="text-center">2,000 บาท</td>
+        </tr>
+        <tr>
+          <td><strong>Hardening ความปลอดภัย (XSS / postMessage / Upload)</strong></td>
+          <td>เพิ่ม DOMPurify ในจุดเสี่ยง, validate origin, validate file type/size, ปรับ policy/RLS ที่จำเป็น</td>
+          <td class="text-center">6,000 บาท</td>
+        </tr>
+        <tr>
+          <td><strong>ทำระบบ Backup/Restore ให้ปลอดภัย</strong></td>
+          <td>ยกเลิก “ลบทิ้งทั้งตารางก่อน import”, ทำ staging + ตรวจ schema + rollback/restore point</td>
+          <td class="text-center">4,000 บาท</td>
+        </tr>
+        <tr>
+          <td><strong>ปรับ Realtime/CRUD ให้ลื่นเมื่อข้อมูลโต</strong></td>
+          <td>Pagination + incremental update, ลด `event:'*'` reload, optimize queries/select columns</td>
+          <td class="text-center">5,000 บาท</td>
         </tr>
       </tbody>
     </table>
